@@ -2,37 +2,55 @@ import streamlit as st
 import cv2
 import os
 from datetime import datetime
-import numpy as np
-
 
 SAVE_DIR = "data"
+NUM_IMAGES = 10
+
+
 os.makedirs(SAVE_DIR, exist_ok=True)
 
+def main():
+    st.title("Take 10 Photos")
 
-def capture_image():
+    if 'images' not in st.session_state:
+        st.session_state.images = []
+    if 'capturing_done' not in st.session_state:
+        st.session_state.capturing_done = False
+
     cap = cv2.VideoCapture(0)
     stframe = st.empty()
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    if not st.session_state.capturing_done:
+        if cap.isOpened():
+            ret, frame = cap.read()
+            if ret:
+                stframe.image(frame, channels="BGR", caption=f"Captured: {len(st.session_state.images)}/{NUM_IMAGES}")
 
+                if st.button("Capture Photo"):
+                    st.session_state.images.append(frame.copy())
+                    st.success(f"Captured image {len(st.session_state.images)}")
 
-        stframe.image(frame, channels="BGR")
+                if len(st.session_state.images) == NUM_IMAGES:
+                    st.session_state.capturing_done = True
+                    cap.release()
+                    st.success("Captured all 10 images. Please enter a label to save them.")
+            else:
+                st.error("Camera not working.")
+        else:
+            st.error("Cannot access camera.")
+    else:
+        label = st.text_input("Enter a label for the captured images:")
+        if label and st.button("Save Images"):
+            label_dir = os.path.join(SAVE_DIR, label)
+            os.makedirs(label_dir, exist_ok=True)
 
-        if st.button("Capture"):
-            label = st.text_input("Label:", value="cat")
-            if label:
+            for i, img in enumerate(st.session_state.images):
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                label_dir = os.path.join(SAVE_DIR, label)
-                os.makedirs(label_dir, exist_ok=True)
-                filename = os.path.join(label_dir, f"{label}_{timestamp}.jpg")
-                cv2.imwrite(filename, frame)
-                st.success(f"Saved {filename}")
-                break
+                filename = os.path.join(label_dir, f"{label}_{timestamp}_{i+1}.jpg")
+                cv2.imwrite(filename, img)
 
-    cap.release()
+            st.success(f"Saved 10 images to '{label_dir}'")
+            st.session_state.images = []
+            st.session_state.capturing_done = False
 
-st.title("Live Object Capture for Training")
-capture_image()
+main()
